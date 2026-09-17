@@ -14,6 +14,7 @@ class StatusProjeto(str, enum.Enum):
 
     ESTUDO_PRELIMINAR = "Estudo Preliminar"
     PROJETO_LEGAL = "Projeto Legal"
+    PROJETO_INTERIORES = "Projeto de Interiores"
     PROJETO_EXECUTIVO = "Projeto Executivo"
     CONCLUIDO = "Concluído"
     CANCELADO = "Cancelado"
@@ -51,6 +52,7 @@ class Projeto(Base):
     __tablename__ = "projetos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome_projeto: Mapped[str | None] = mapped_column(String(200))
     cliente_nome: Mapped[str] = mapped_column(String(150), nullable=False)
     cliente_telefone: Mapped[str | None] = mapped_column(String(30))
     cliente_email: Mapped[str | None] = mapped_column(String(150))

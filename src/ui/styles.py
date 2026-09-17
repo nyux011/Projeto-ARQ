@@ -11,11 +11,13 @@ PALETTE = {
     "green": "#0ca30c",
     "red": "#d03b3b",
     "muted": "#898781",
+    "brown": "#8a6d3b",
 }
 
 STATUS_COLORS = {
     "Estudo Preliminar": PALETTE["blue"],
     "Projeto Legal": PALETTE["orange"],
+    "Projeto de Interiores": PALETTE["brown"],
     "Projeto Executivo": PALETTE["aqua"],
     "Concluído": PALETTE["green"],
     "Cancelado": PALETTE["red"],

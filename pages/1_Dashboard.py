@@ -8,8 +8,10 @@ import streamlit as st
 
 from src.db.models import StatusParcela, StatusProjeto
 from src.services import financeiro_service, projetos_service
-from src.ui.styles import PALETTE, STATUS_COLORS, kpi_card, status_badge
+from src.ui.formatting import formatar_moeda
+from src.ui.styles import PALETTE, STATUS_COLORS, inject_global_css, kpi_card, status_badge
 
+inject_global_css()
 st.title(":material/space_dashboard: Dashboard")
 
 projetos = projetos_service.listar_projetos()
@@ -25,16 +27,16 @@ with c1:
     st.markdown(kpi_card("Projetos ativos", str(len(projetos_ativos)), PALETTE["blue"]), unsafe_allow_html=True)
 with c2:
     st.markdown(
-        kpi_card("Recebido no mês", f"R$ {resumo_mes['recebido']:,.2f}", PALETTE["green"]),
+        kpi_card("Recebido no mês", formatar_moeda(resumo_mes["recebido"]), PALETTE["green"]),
         unsafe_allow_html=True,
     )
 with c3:
     st.markdown(
-        kpi_card("Previsto no mês", f"R$ {resumo_mes['previsto']:,.2f}", PALETTE["yellow"]),
+        kpi_card("Previsto no mês", formatar_moeda(resumo_mes["previsto"]), PALETTE["yellow"]),
         unsafe_allow_html=True,
     )
 with c4:
-    st.markdown(kpi_card("Total atrasado", f"R$ {total_atrasado:,.2f}", PALETTE["red"]), unsafe_allow_html=True)
+    st.markdown(kpi_card("Total atrasado", formatar_moeda(total_atrasado), PALETTE["red"]), unsafe_allow_html=True)
 
 st.write("")
 col1, col2 = st.columns([1, 1.6])
@@ -46,18 +48,10 @@ with col1:
             qtd = sum(1 for p in projetos if p.status == status)
             if qtd == 0:
                 continue
-            st.markdown(
-                f"""
-                <div style="display:flex; justify-content:space-between; align-items:center;
-                            padding:10px 14px; margin-bottom:8px; border-radius:10px;
-                            background:var(--secondary-background-color);
-                            border:1px solid rgba(128,128,128,0.25);">
-                    {status_badge(status.value, STATUS_COLORS[status.value])}
-                    <span style="font-weight:700; font-size:1.05rem; color:var(--text-color);">{qtd}</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            with st.container(border=True):
+                linha1, linha2 = st.columns([3, 1])
+                linha1.markdown(status_badge(status.value, STATUS_COLORS[status.value]), unsafe_allow_html=True)
+                linha2.markdown(f"**{qtd}**")
     else:
         st.info("Nenhum projeto cadastrado ainda.")
 
@@ -79,16 +73,40 @@ with col2:
         previsto_df = resumo[resumo["situacao"] == "Previsto"]
 
         fig = go.Figure()
-        fig.add_bar(x=previsto_df["mes"], y=previsto_df["valor"], name="Previsto", marker_color=PALETTE["blue"])
-        fig.add_bar(x=recebido_df["mes"], y=recebido_df["valor"], name="Recebido", marker_color=PALETTE["green"])
+        fig.add_bar(
+            x=previsto_df["mes"],
+            y=previsto_df["valor"],
+            name="Previsto",
+            marker_color=PALETTE["blue"],
+            text=[formatar_moeda(v, decimais=0) for v in previsto_df["valor"]],
+            textposition="outside",
+            textangle=-90,
+            textfont=dict(size=12),
+            cliponaxis=False,
+            hovertemplate="%{x}<br>Previsto: R$ %{y:,.2f}<extra></extra>",
+        )
+        fig.add_bar(
+            x=recebido_df["mes"],
+            y=recebido_df["valor"],
+            name="Recebido",
+            marker_color=PALETTE["green"],
+            text=[formatar_moeda(v, decimais=0) for v in recebido_df["valor"]],
+            textposition="outside",
+            textangle=-90,
+            textfont=dict(size=12),
+            cliponaxis=False,
+            hovertemplate="%{x}<br>Recebido: R$ %{y:,.2f}<extra></extra>",
+        )
+        maior_valor = float(resumo["valor"].max())
         fig.update_layout(
             barmode="group",
             bargap=0.25,
+            uniformtext=dict(mode="show", minsize=12),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
             margin=dict(l=10, r=10, t=40, b=10),
-            yaxis=dict(zeroline=False, title="R$"),
+            yaxis=dict(zeroline=False, title=None, showticklabels=False, range=[0, maior_valor * 1.6]),
             xaxis=dict(title=None),
-            height=340,
+            height=420,
         )
         st.plotly_chart(fig, use_container_width=True)
     else:

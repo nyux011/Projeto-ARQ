@@ -1,7 +1,9 @@
 """Regras de negócio para cadastro e acompanhamento de projetos."""
 
+import calendar
 from datetime import date
 
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from src.db.base import SessionLocal
@@ -48,6 +50,7 @@ def obter_projeto(projeto_id: int) -> Projeto | None:
 def criar_projeto(
     cliente_nome: str,
     valor_total: float,
+    nome_projeto: str = "",
     cliente_telefone: str = "",
     cliente_email: str = "",
     cidade: str = "",
@@ -64,6 +67,7 @@ def criar_projeto(
     Args:
         cliente_nome: Nome do cliente contratante.
         valor_total: Valor total contratado para o projeto.
+        nome_projeto: Nome/identificação do projeto (ex: "Residência Alto Padrão").
         cliente_telefone: Telefone de contato do cliente.
         cliente_email: E-mail de contato do cliente.
         cidade: Cidade onde o projeto será executado.
@@ -80,6 +84,7 @@ def criar_projeto(
     """
     with SessionLocal() as session:
         projeto = Projeto(
+            nome_projeto=nome_projeto,
             cliente_nome=cliente_nome,
             cliente_telefone=cliente_telefone,
             cliente_email=cliente_email,
@@ -168,3 +173,59 @@ def adicionar_parcela(
         session.commit()
         session.refresh(parcela)
         return parcela
+
+
+def gerar_parcelas_em_lote(
+    projeto_id: int,
+    quantidade: int,
+    valor_parcela: float,
+    dia_vencimento: int,
+    mes_inicial: int,
+    ano_inicial: int,
+    observacao: str = "",
+) -> list[Parcela]:
+    """Gera várias parcelas de uma vez, uma por mês, num dia fixo do mês.
+
+    Args:
+        projeto_id: Identificador do projeto.
+        quantidade: Quantidade de parcelas a gerar.
+        valor_parcela: Valor de cada parcela (já com desconto/juros aplicado, se houver).
+        dia_vencimento: Dia do mês do vencimento (ajustado automaticamente em meses mais curtos).
+        mes_inicial: Mês da primeira parcela (1-12).
+        ano_inicial: Ano da primeira parcela.
+        observacao: Texto complementar anexado à descrição de cada parcela (ex: "Desconto de 10%").
+
+    Returns:
+        Lista das parcelas criadas, já persistidas.
+    """
+    with SessionLocal() as session:
+        ultimo_numero = (
+            session.query(func.max(Parcela.numero)).filter(Parcela.projeto_id == projeto_id).scalar() or 0
+        )
+        parcelas_criadas = []
+        for i in range(quantidade):
+            numero = ultimo_numero + i + 1
+            mes_total = mes_inicial - 1 + i
+            ano = ano_inicial + mes_total // 12
+            mes = mes_total % 12 + 1
+            ultimo_dia_mes = calendar.monthrange(ano, mes)[1]
+            dia = min(dia_vencimento, ultimo_dia_mes)
+
+            descricao = f"Parcela {numero}"
+            if observacao:
+                descricao += f" ({observacao})"
+
+            parcela = Parcela(
+                projeto_id=projeto_id,
+                numero=numero,
+                valor=valor_parcela,
+                data_prevista=date(ano, mes, dia),
+                descricao=descricao,
+            )
+            session.add(parcela)
+            parcelas_criadas.append(parcela)
+
+        session.commit()
+        for parcela in parcelas_criadas:
+            session.refresh(parcela)
+        return parcelas_criadas
