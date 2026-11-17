@@ -10,23 +10,22 @@ DATA_DIR.mkdir(exist_ok=True)
 DEFAULT_SQLITE_URL = f"sqlite:///{(DATA_DIR / 'plataforma.db').as_posix()}"
 
 
-def _usar_driver_pg8000(url: str) -> str:
-    """Normaliza uma URL do Postgres para usar o driver pg8000 (puro Python).
+def _usar_driver_psycopg2(url: str) -> str:
+    """Normaliza uma URL do Postgres para usar o driver psycopg2.
 
-    O pg8000 não precisa de compilação nem de bibliotecas nativas do sistema,
-    ao contrário do psycopg2 — evita falhas de build quando a versão do
-    Python do ambiente de deploy muda.
+    Aceita URLs com prefixo "postgres://", "postgresql://" ou com outro
+    driver já indicado (ex.: "postgresql+pg8000://"), todas convertidas para
+    "postgresql+psycopg2://".
 
     Args:
         url: URL de conexão original.
 
     Returns:
-        URL com o dialeto "+pg8000" aplicado, se for uma URL do Postgres.
+        URL com o dialeto "+psycopg2" aplicado, se for uma URL do Postgres.
     """
-    if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+pg8000://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+pg8000://", 1)
+    for prefixo in ("postgresql+pg8000://", "postgresql://", "postgres://"):
+        if url.startswith(prefixo):
+            return "postgresql+psycopg2://" + url[len(prefixo):]
     return url
 
 
@@ -40,18 +39,18 @@ def get_database_url() -> str:
     operacional, nunca a partir de um arquivo .env por esta aplicação.
 
     Returns:
-        URL de conexão compatível com SQLAlchemy (Postgres normalizado para o driver pg8000).
+        URL de conexão compatível com SQLAlchemy (Postgres normalizado para o driver psycopg2).
     """
     try:
         import streamlit as st
 
         for nome in ("DATABASE_URL", "SUPABASE_URL"):
             if nome in st.secrets and st.secrets[nome]:
-                return _usar_driver_pg8000(st.secrets[nome])
+                return _usar_driver_psycopg2(st.secrets[nome])
     except Exception:
         pass
 
     url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_URL")
     if url:
-        return _usar_driver_pg8000(url)
+        return _usar_driver_psycopg2(url)
     return DEFAULT_SQLITE_URL
